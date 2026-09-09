@@ -1,13 +1,13 @@
 # From flake without installation yet:
-#   nix run home-manager/master -- switch --flake path:$HOME/.config/nixpkgs
+#   nix run home-manager/master -- switch --flake path:$PWD
 #
 # After installation:
-#   home-manager switch --flake path:$HOME/.config/nixpkgs
+#   home-manager switch --flake path:$PWD
 #
 # Clean up old cruft:
 #   nix-collect-garbage -d
 
-{ pkgs, lib, ... }:
+{ pkgs, lib, beads, ... }:
 
 {
   programs.home-manager.enable = true;
@@ -22,43 +22,47 @@
   };
 
   home.packages = with pkgs; [
+    aerospace
     awscli2
+    beads
     bat
     cacert
     coreutils
     difftastic
+    eksctl
     emacs
     fq
     gh
     git-lfs
+    google-cloud-sdk
     graphviz
     heroku
     htop
     jq
     json-plot
     kubent
-    kubeshark
     moreutils
+    mosh
     nerd-fonts.fira-code
     nix-direnv
     nodejs
     python313Packages.sqlparse
-    ripgrep
     rlwrap
     s3cmd
-    silver-searcher
+    silver-searcher-ng
     socat
     sqlite-interactive
     ssm-session-manager-plugin
     termshark
+    tmux
     vim
+    universal-ctags
     unixtools.watch
     xmlformat
     yq
 
-    # Version-pinned packages from flake
-    elixir_1_17
-    kubectl-pinned
+    buildkite-cli
+    kubectl
   ];
 
   programs.direnv = {
@@ -81,14 +85,32 @@
       k = "kubectl";
       reb = "git pull --rebase origin $(if git rev-parse master &>/dev/null; then echo master; else echo main; fi)";
       gpf = "git push --force-with-lease";
-      gprune = "git fetch --prune --tags";
-      sbcl = "rlwrap ros run";
+      gprune = "git fetch --prune --tags && git remote prune origin";
       ghpr = "git pull --rebase origin $(if git rev-parse master &>/dev/null; then echo master; else echo main; fi) && git push -u origin HEAD && gh pr create --fill --web";
     };
 
     initExtra = ''
+      ulimit -n 4096
+
       # This gives the greatest control over the PATH
       export PATH="$HOME/bin:$HOME/.rd/bin:$HOME/.local/bin:$HOME/.nix-profile/bin:$PATH:$HOME/.vim/plugged/vim-iced/bin:$HOME/.mix/escripts:$HOME/.npm/bin"
+
+      export EDITOR='vim'
+      check_for_cursor_ide() {
+        local pid=$$
+        while [ "$pid" -gt 1 ]; do
+          proc_name=$(ps -p $pid -o comm= 2>/dev/null)
+          if [[ "$proc_name" =~ Cursor ]]; then
+            return 0
+          fi
+          pid=$(ps -p $pid -o ppid= 2>/dev/null | tr -d ' ')
+        done
+        return 1
+      }
+      if check_for_cursor_ide; then
+        export EDITOR='cursor --wait'
+      fi
+
 
       # Machine-specific functions
       [ -f ~/.bash_functions ] && source ~/.bash_functions
@@ -263,7 +285,7 @@
       }
 
       function vg() {
-        vim -q <(rg --vimgrep "$@")
+        vim -q <(rg -n "$@" | sort -t: -k1,1 -k2,2n)
       }
     '';
 
@@ -275,12 +297,12 @@
   home.sessionVariables = {
     BASH_SILENCE_DEPRECATION_WARNING = "1";
     NIXPKGS_ALLOW_UNFREE = "1";
-    EDITOR = "cursor --wait";
     LESS = "-eiMXR";
     HISTTIMEFORMAT = "%h %d - %H:%M:%S  ";
     DFT_SYNTAX_HIGHLIGHT = "off";
     ERL_AFLAGS = "-kernel shell_history enabled";
     DIRENV_LOG_FORMAT = "";
+    CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
   } // (if builtins.pathExists ./secret-env-vars.nix then import ./secret-env-vars.nix else {});
 
   programs.fzf = {
@@ -301,27 +323,29 @@
   programs.git = {
     enable = true;
 
-    userName = "William Schroeder";
-    userEmail = "wschroeder@gmail.com";
-
-    aliases = {
-      tlog = "log --graph --full-history --date-order --pretty=format:'%w(120, 0, 9)%C(yellow)%h%Cred%d%Creset %C(green)%an%Creset %C(white)%s%Creset'";
-      tdlog = "log --graph --full-history --date-order --pretty=format:'%w(120, 0, 9)%C(yellow)%h%Cred%d%Creset %C(magenta)(%ci)%Creset %C(green)%an%Creset %C(white)%s%Creset'";
-      cleanup = "!git branch --merged | grep  -v '\\*\\|master\\|develop' | xargs -n 1 git branch -d";
-    };
-
-    ignores = [ 
+    ignores = [
       "*~"
       ".DS_Store"
     ];
 
-    extraConfig = {
+    settings = {
+      user = {
+        name = "William Schroeder";
+        email = "schroederw@objectcomputing.com";
+      };
+
+      alias = {
+        tlog = "log --graph --full-history --date-order --pretty=format:'%w(120, 0, 9)%C(yellow)%h%Cred%d%Creset %C(green)%an%Creset %C(white)%s%Creset'";
+        tdlog = "log --graph --full-history --date-order --pretty=format:'%w(120, 0, 9)%C(yellow)%h%Cred%d%Creset %C(magenta)(%ci)%Creset %C(green)%an%Creset %C(white)%s%Creset'";
+        cleanup = "!git branch --merged | grep  -v '\\*\\|master\\|develop' | xargs -n 1 git branch -d";
+      };
+
       color = {
         diff = "auto";
         branch = "auto";
         status = "auto";
       };
-      
+
       merge = {
         tool = "vimdiff";
         conflictstyle = "diff3";
@@ -329,16 +353,16 @@
 
       branch.autoSetupRebase = "always";
       push.default = "upstream";
-      
+
       core = {
         preloadIndex = true;
-        editor = "cursor --wait";
+        # editor = "cursor --wait";
       };
 
       init.defaultBranch = "master";
-      
+
       pull.rebase = true;
-      
+
       filter.lfs = {
         clean = "git-lfs clean -- %f";
         smudge = "git-lfs smudge -- %f";
@@ -346,14 +370,22 @@
         required = true;
       };
 
-      diff.external = "difft";
+      credential = {
+        helper = [
+          ""
+          "!${pkgs.gh}/bin/gh auth git-credential"
+        ];
+      };
     };
   };
 
   programs.k9s = {
     enable = true;
-    plugin = {
-      plugins = if builtins.pathExists ./k9s-plugins.nix then import ./k9s-plugins.nix else {};
-    };
+    plugins = if builtins.pathExists ./k9s-plugins.nix then import ./k9s-plugins.nix else {};
+  };
+
+  programs.ripgrep = {
+    enable = true;
+    arguments = [ "-n" ];
   };
 }
