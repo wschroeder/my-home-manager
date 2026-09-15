@@ -301,7 +301,6 @@
     HISTTIMEFORMAT = "%h %d - %H:%M:%S  ";
     DFT_SYNTAX_HIGHLIGHT = "off";
     ERL_AFLAGS = "-kernel shell_history enabled";
-    DIRENV_LOG_FORMAT = "";
     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
   } // (if builtins.pathExists ./secret-env-vars.nix then import ./secret-env-vars.nix else {});
 
