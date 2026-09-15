@@ -28,7 +28,7 @@
     bat
     cacert
     coreutils
-    difftastic
+    duckdb
     eksctl
     emacs
     fq
