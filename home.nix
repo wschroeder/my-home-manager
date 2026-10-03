@@ -46,8 +46,15 @@
     nerd-fonts.fira-code
     nix-direnv
     nodejs
-    python3
-    python313Packages.sqlparse
+    (python3.withPackages (ps: with ps; [
+      numpy
+      pandas
+      pillow
+      pyobjc-framework-Quartz
+      pyyaml
+      scipy
+      sqlparse
+    ]))
     rlwrap
     s3cmd
     silver-searcher-ng
