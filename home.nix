@@ -46,6 +46,7 @@
     nerd-fonts.fira-code
     nix-direnv
     nodejs
+    python3
     python313Packages.sqlparse
     rlwrap
     s3cmd
